@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบใบเสร็จค่าไฟสไตล์ Canva</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-dark: #4a148c; 
+            --secondary-dark: #006064;
+            --text-black: #121212;
+            --bg-canvas: #dfe6e9;
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: var(--bg-canvas);
+            margin: 0; padding: 40px 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .input-card {
+            background: white; padding: 30px; border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 420px;
+            margin-bottom: 40px;
+        }
+
+        .input-card h2 { margin-top: 0; color: var(--primary-dark); text-align: center; }
+
+        input {
+            width: 100%; padding: 12px; border: 2px solid #ced4da;
+            border-radius: 10px; font-size: 16px; margin-bottom: 15px;
+            box-sizing: border-box; font-family: 'Kanit';
+        }
+
+        .btn-calc {
+            width: 100%; padding: 14px; background: var(--primary-dark);
+            color: white; border: none; border-radius: 10px;
+            font-weight: 600; cursor: pointer;
+        }
+
+        /* --- เฉพาะส่วนที่เป็นใบเสร็จ (ที่จะบันทึกเป็นรูป) --- */
+        #receipt-area {
+            background: white; width: 380px; border-radius: 25px;
+            overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+            display: none; margin-bottom: 20px;
+        }
+
+        .receipt-banner {
+            background: linear-gradient(90deg, var(--primary-dark), var(--secondary-dark));
+            height: 18px;
+        }
+
+        .receipt-body { padding: 40px; text-align: center; } 
+
+        .logo-text { font-family: 'Montserrat'; font-weight: 700; font-size: 34px; color: var(--primary-dark); }
+
+        .status-badge {
+            display: inline-block; background: #2e7d32; color: white;
+            padding: 5px 18px; border-radius: 30px; font-size: 13px; font-weight: 600;
+            margin-bottom: 25px;
+        }
+
+        .user-name { font-weight: 600; font-size: 26px; color: var(--text-black); }
+        .invoice-id { font-size: 15px; color: #333; font-weight: 600; margin-top: 5px; }
+
+        .details-list {
+            background: #f1f3f5; padding: 22px; border-radius: 15px;
+            margin-bottom: 25px; text-align: left;
+        }
+        .detail-row {
+            display: flex; justify-content: space-between;
+            padding: 12px 0; border-bottom: 1px solid #dee2e6;
+        }
+        .detail-row:last-child { border-bottom: none; }
+
+        .total-box {
+            background: #e0f2f1; border: 2px solid #80cbc4;
+            padding: 22px; border-radius: 15px; display: flex;
+            justify-content: space-between; align-items: center;
+        }
+        .total-val { font-family: 'Montserrat'; font-size: 32px; font-weight: 700; color: var(--primary-dark); }
+
+        .footer { margin-top: 35px; font-size: 14px; color: #1a1a1a; }
+        .thanks-msg { font-weight: 600; color: var(--primary-dark); font-size: 18px; margin-top: 15px; display: block; }
+
+        /* --- ส่วนปุ่มควบคุม (อยู่นอกพื้นที่บันทึกรูป) --- */
+        .action-btns { display: none; flex-direction: column; gap: 10px; width: 380px; }
+
+        .btn-action {
+            width: 100%; padding: 14px; border-radius: 50px; border: none;
+            font-weight: 600; cursor: pointer; font-family: 'Kanit';
+        }
+        .btn-png { background: var(--primary-dark); color: white; margin-top: 10px; }
+        .btn-excel { background: #1f7244; color: white; }
+
+        /* ตารางประวัติ */
+        .history-card { background: white; padding: 30px; border-radius: 20px; width: 100%; max-width: 650px; margin-top: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .history-table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; }
+        .history-table td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .clickable-name { color: var(--primary-dark); font-weight: 600; cursor: pointer; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div class="input-card">
+        <h2>⚡ ออกใบเสร็จค่าไฟ</h2>
+        <input type="text" id="userName" placeholder="ชื่อลูกค้า">
+        <input type="number" id="prevUnit" placeholder="เลขมิเตอร์ครั้งก่อน" value="5020">
+        <input type="number" id="currUnit" placeholder="เลขมิเตอร์ครั้งนี้">
+        <input type="number" id="rate" value="5.00" step="0.1">
+        <button class="btn-calc" onclick="generateBill()">ออกใบเสร็จ</button>
+    </div>
+
+    <div id="receipt-area">
+        <div class="receipt-banner"></div>
+        <div class="receipt-body">
+            <div class="logo-text">โลโ้/ชื่่อ</div>
+            <div class="status-badge">PAID</div>
+            <div class="user-name" id="resName">-</div>
+            <div class="invoice-id">#INV-6942</div> 
+
+            <div class="details-list">
+                <div class="detail-row"><span>เลขมิเตอร์ครั้งก่อน</span><span id="resPrev">0</span></div>
+                <div class="detail-row"><span>เลขมิเตอร์ครั้งนี้</span><span id="resCurr">0</span></div>
+                <div class="detail-row"><span>ยอดใช้ไฟฟ้า</span><span id="resUnitUsed">0 หน่วย</span></div>
+                <div class="detail-row"><span>ราคาต่อหน่วย</span><span>฿<span id="resRate">0.00</span></span></div>
+            </div>
+
+            <div class="total-box">
+                <span style="font-weight:600; color:var(--secondary-dark);">รวมเงินสุทธิ</span>
+                <span class="total-val">฿<span id="resGrand">0.00</span></span>
+            </div>
+
+            <div class="footer">
+                ออกบิลเมื่อ: <span>19 ก.พ. 2569 | 20:10 น.</span>
+                <span class="thanks-msg">✨ ขอบคุณที่ใช้บริการ ✨</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="action-btns" id="actionArea">
+        <button class="btn-action btn-png" onclick="downloadImage()">📥 ดาวน์โหลดใบเสร็จ (.PNG)</button>
+        <button class="btn-action btn-excel" onclick="exportToExcel()">📊 รวมข้อมูลลูกค้าทุกคนเข้า Excel (.xlsx)</button>
+    </div>
+
+    <div class="history-card">
+        <h3 style="margin-top:0; color:var(--primary-dark);">📋 ประวัติลูกค้าทุกคน</h3>
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>ลำดับ</th>
+                    <th>ชื่อ (กดเพื่อดูบิล)</th>
+                    <th>หน่วย</th>
+                    <th>ยอดเงิน</th>
+                </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        var allCustomerData = JSON.parse(localStorage.getItem('electricityHistory')) || [];
+        updateTable();
+
+        function generateBill() {
+            var name = document.getElementById('userName').value || "คุณลูกค้า";
+            var prev = parseFloat(document.getElementById('prevUnit').value) || 0;
+            var curr = parseFloat(document.getElementById('currUnit').value);
+            var rate = parseFloat(document.getElementById('rate').value) || 0;
+
+            if (isNaN(curr) || curr < prev) {
+                alert("กรุณากรอกข้อมูลให้ถูกต้อง");
+                return;
+            }
+
+            var units = curr - prev;
+            var total = units * rate;
+
+            var newData = { id: Date.now(), name: name, prev: prev, curr: curr, units: units, rate: rate, total: total };
+            allCustomerData.push(newData);
+            localStorage.setItem('electricityHistory', JSON.stringify(allCustomerData));
+            
+            showReceipt(newData);
+            updateTable();
+        }
+
+        function showReceipt(data) {
+            document.getElementById('resName').innerText = data.name;
+            document.getElementById('resPrev').innerText = data.prev.toLocaleString();
+            document.getElementById('resCurr').innerText = data.curr.toLocaleString();
+            document.getElementById('resUnitUsed').innerText = data.units.toLocaleString() + " หน่วย";
+            document.getElementById('resRate').innerText = data.rate.toFixed(2);
+            document.getElementById('resGrand').innerText = data.total.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+            document.getElementById('receipt-area').style.display = 'block';
+            document.getElementById('actionArea').style.display = 'flex';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateTable() {
+            const body = document.getElementById('historyBody');
+            body.innerHTML = "";
+            allCustomerData.forEach((item, index) => {
+                const row = `<tr>
+                    <td>${index + 1}</td>
+                    <td class="clickable-name" onclick="viewOldBill(${item.id})">${item.name}</td>
+                    <td>${item.units}</td>
+                    <td>฿${item.total.toLocaleString()}</td>
+                </tr>`;
+                body.innerHTML += row;
+            });
+        }
+
+        function viewOldBill(id) {
+            const data = allCustomerData.find(item => item.id === id);
+            if(data) showReceipt(data);
+        }
+
+        function downloadImage() {
+            // ถ่ายรูปเฉพาะส่วน #receipt-area เท่านั้น (ซึ่งไม่มีปุ่มดาวน์โหลดแล้ว)
+            const area = document.getElementById('receipt-area');
+            html2canvas(area, { 
+                scale: 3, 
+                backgroundColor: "#dfe6e9" 
+            }).then(canvas => {
+                var link = document.createElement('a');
+                link.download = 'Invoice_6942.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+
+        function exportToExcel() {
+            if (allCustomerData.length === 0) return;
+            const exportData = allCustomerData.map(({id, ...rest}) => ({
+                "ชื่อลูกค้า": rest.name, "เลขมิเตอร์ก่อน": rest.prev, "เลขมิเตอร์หลัง": rest.curr,
+                "หน่วยที่ใช้": rest.units, "ราคา/หน่วย": rest.rate, "ยอดเงินสุทธิ": rest.total
+            }));
+            var ws = XLSX.utils.json_to_sheet(exportData);
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Data");
+            XLSX.writeFile(wb, "ข้อมูลค่าไฟ.xlsx");
+        }
+    </script>
+</body>
+</html>
